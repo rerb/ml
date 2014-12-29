@@ -1,106 +1,105 @@
 (ns ml.core
   (:require [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
-            [om-bootstrap.button :as b]
-            [om-bootstrap.random :as r]
-            [om-bootstrap.grid :as g]))
+            [cljs.core.async :refer [<! put! chan]]
+            [om-bootstrap.grid :as grid]
+            [om-bootstrap.panel :as p]
+            [ajax.core :refer [GET]]
+            [clojure.string :as string]
+            [ml.vote-box :refer [vote-box]])
+  (:require-macros [cljs.core.async.macros :refer [go]]))
 
-(defn tag-link [cursor _]
-  (om/component
-   (let [tag-name (:name cursor)]
-     (dom/a #js {:href (:url cursor)} (:name cursor)))))
+(enable-console-print!)
 
-(defn tag-list [cursor _]
-  (om/component
-   (apply dom/ul nil
-          (map (fn [data] (dom/li nil (om/build tag-link data))) (:tags cursor)))))
+(def language-name-ch (chan))
+(def colorized-source-ch (chan))
 
-(defn missing-link [cursor _]
+(defn error-handler [{:keys [status status-text]}]
+  (.log js/console (str "something bad happened: " status " " status-text)))
+
+(defn colorize [source language-url]
+  (GET language-url
+       {:handler #(put! language-name-ch (:name %))
+        :error-handler error-handler
+        :response-format :json
+        :keywords? true})
+  (go (let [language-name (<! language-name-ch)]
+        (GET "http://localhost:7000/beauty/"
+             {:handler #(put! colorized-source-ch (:source %))
+              :error-handler error-handler
+              :response-format :json
+              :keywords? true
+              :params {:source source
+                       :lang (string/lower-case language-name)}})
+        (go (let [colorized-source (<! colorized-source-ch)]
+              colorized-source)))))
+
+(defn source-panel [source owner]
   (reify
     om/IRender
-    (render [this]
-      (let [img (:img cursor)
-            {:keys [src alt-text width height]} img]
-        (dom/div nil
-                 (dom/a #js {:href (:url cursor)}
-                        (dom/img #js {:src src
-                                      :alt-text alt-text
-                                      :width width
-                                      :height height}))
-                 (apply dom/div nil
-                        (map (fn [data] (dom/div nil (om/build tag-link data))) (:tags cursor))))))))
+    (render [_]
+      (p/panel {}
+               (om.dom/div #js {:dangerouslySetInnerHTML #js {:__html source}})))))
 
-(defn item [app owner]
+(defn item-box [item owner]
+  (reify
+    om/IInitState
+    (init-state [_]
+      {:colorized-source ""})
+    om/IWillMount
+    (will-mount [_]
+      (colorize (:source item) (:language item))
+      (go (while true
+            (let [colorized-source (<! colorized-source-ch)]
+              (om/set-state! owner :colorized-source colorized-source)))))
+    om/IRender
+    (render [_]
+      (dom/div {}
+               (grid/grid {}
+                          (grid/row {}
+                                    (grid/col {:md 2}
+                                              (om/build vote-box item))
+                                    (grid/col {:md 10}
+                                              (om/build source-panel
+                                                        (om/get-state owner
+                                                                      :colorized-source))
+                                              (dom/div {}
+                                                       (:commentary item))))
+                          (dom/hr {}))))))
+
+(defn item-list [app owner]
   (reify
     om/IRender
-    (render [this]
-      (dom/li nil
-              (dom/a #js {:href (:href app)}
-                     (dom/img #js {:src (:src app)}))
-              (om/build vote-box app)
-              (apply dom/div nil (om/build-all tag (:tags app)))))))
+    (render [_]
+      (grid/grid {}
+                 (map (fn [item] (grid/row {}
+                                           (grid/col {}
+                                                     (om/build item-box item))))
+                      (:items app))))))
 
-
-
-
-
-
-
-
-
-(defn upvote-checkbox [app owner]
-  (om/component
-   (dom/input #js {:type "checkbox"
-                   :checked (pos? (:vote app))
-                   :onChange (fn [e]
-                               (if (not :checked)
-                                 (do (om/update! app :vote 1)
-                                     (om/transact! app :vote-count inc))))}
-              "Upvote")))
-
-(defn downvote-checkbox [app owner]
-  (om/component
-   (dom/input #js {:type "checkbox"
-                   :checked (neg? (:vote app))
-                   :onChange (fn [e]
-                               (if (not :checked)
-                                 (do (om/update! app :vote -1)
-                                     (om/transact! app :vote-count dec)))
-                               )}
-              "Downvote")))
-
-(defn vote-box [app owner]
-  (om/component
-   (dom/form nil
-            (om/build upvote-checkbox app)
-            (dom/div nil (:vote-count app))
-            (om/build downvote-checkbox app))))
-
-(defonce app-state (atom {:item {:id 1
-                                 :url "http://www.example.com/items/1"
-                                 :img {:src "http://www.example.com/x.jpg"
-                                       :alt-text "X JPG"
-                                       :width 190
-                                       :height 190}
-                                 :tags [{:name "artsy"
-                                         :url "http://www.example.com/tags/artsy"},
-                                        {:name "pretty"
-                                         :url "http://www.example.com/tags/pretty"}]}}))
+(defonce app-state (atom {:items [{:id 1
+                                   :source "from butterfiles import Darvon\n\nx = Darvon()"
+                                   :tags [{:name "artsy"
+                                           :url "http://www.example.com/tags/artsy"},
+                                          {:name "pretty"
+                                           :url "http://www.example.com/tags/pretty"}]
+                                   :commentary "Very pretty and artsy."
+                                   :votes (int (rand 10))
+                                   :vote 0
+                                   :language "http://localhost:8000/api/languages/1/"}
+                                  {:id 2
+                                   :source "import this  # what is this?"
+                                   :tags [{:name "blue"
+                                           :url "http://www.example.com/tags/blue"},
+                                          {:name "blurry"
+                                           :url "http://www.example.com/tags/blurry"}]
+                                   :commentary "Blue and blurry."
+                                   :votes (int (rand 10))
+                                   :vote 0
+                                   :language "http://localhost:8000/api/languages/1/"}]}))
 
 (defn main []
   (om/root
-   (fn [app owner]
-     (reify
-       om/IRender
-       (render [_]
-         (om/build missing-link (:item app))
-         ;; (g/row {}
-         ;;  (g/col {:md 3}
-         ;;   (r/well {} "Well Text"
-         ;;           (b/button {} "Default")
-         ;;           (dom/h1 nil (:text app))))
-         ;;  (g/col {:md 8}
-         ;;         (r/well {} "More Well Text" )))))
-         )))
+   item-list
    app-state
    {:target (. js/document (getElementById "app"))}))

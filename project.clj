@@ -18,7 +18,8 @@
                  [weasel "0.4.0-SNAPSHOT"]
                  [leiningen "2.5.0"]
                  [racehub/om-bootstrap "0.3.1" :exclusions [org.clojure/clojure]]
-                 [om "0.7.3"]]
+                 [prismatic/om-tools "0.3.3" :exclusions [org.clojure/clojure]]
+                 [cljs-ajax "0.3.3"]]
 
   :plugins [[lein-cljsbuild "1.0.3"]
             [lein-environ "1.0.0"]]
@@ -27,7 +28,8 @@
 
   :uberjar-name "ml.jar"
 
-  :cljsbuild {:builds {:app {:source-paths ["src/cljs"]
+  :cljsbuild {:builds {:app {:source-paths ["src/cljs"
+                                            "target/classes"]
                              :compiler {:output-to     "resources/public/js/app.js"
                                         :output-dir    "resources/public/js/out"
                                         :source-map    "resources/public/js/out.js.map"
@@ -47,14 +49,16 @@
 
                    :env {:is-dev true}
 
-                   :cljsbuild {:builds {:app {:source-paths ["env/dev/cljs"]}}}}
+                   :cljsbuild {:builds {:app {:source-paths ["env/dev/cljs"
+                                                             "target/classes"]}}}}
 
              :uberjar {:hooks [leiningen.cljsbuild]
                        :env {:production true}
                        :omit-source true
                        :aot :all
                        :cljsbuild {:builds {:app
-                                            {:source-paths ["env/prod/cljs"]
+                                            {:source-paths ["env/prod/cljs"
+                                                            "target/classes"]
                                              :compiler
                                              {:optimizations :advanced
                                               :pretty-print false}}}}}})
