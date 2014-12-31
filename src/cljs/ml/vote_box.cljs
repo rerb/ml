@@ -13,19 +13,17 @@
   (reify
     om/IRender
     (render [_]
-      (dom/div {}
-               (b/button {:onClick #(put! (om/get-state owner :ch) 1)
-                          :bs-style (if (neg? (:vote app)) "primary" "default")}
-                         (r/glyphicon {:glyph "arrow-down"}))))))
+      (b/button {:onClick #(put! (om/get-state owner :ch) 1)
+                 :bs-style (if (neg? (:vote app)) "primary" "default")}
+                (r/glyphicon {:glyph "arrow-down"})))))
 
 (defn- up-vote-button [app owner]
   (reify
     om/IRender
     (render [_]
-      (dom/div {}
-               (b/button {:onClick #(put! (om/get-state owner :ch) 1)
-                          :bs-style (if (pos? (:vote app)) "primary" "default")}
-                         (r/glyphicon {:glyph "arrow-up"}))))))
+      (b/button {:onClick #(put! (om/get-state owner :ch) 1)
+                 :bs-style (if (pos? (:vote app)) "primary" "default")}
+                (r/glyphicon {:glyph "arrow-up"})))))
 
 (defn vote-box [app owner]
   (reify
@@ -55,16 +53,13 @@
     om/IRender
     (render [_]
       (grid/grid {}
-               (grid/row {}
-                      (grid/col {}
-                                (om/build up-vote-button
-                                          app
-                                          {:state {:ch (om/get-state owner :upvote-ch)}})))
-               (grid/row {}
-                      (grid/col {}
-                                (:votes app)))
-               (grid/row {}
-                         (grid/col {}
-                                   (om/build down-vote-button
-                                             app
-                                             {:state {:ch (om/get-state owner :downvote-ch)}})))))))
+                 (grid/row {:className "center-block"}
+                           (grid/col {:className "pull-left"}
+                                     (om/build up-vote-button
+                                               app
+                                               {:state {:ch (om/get-state owner :upvote-ch)}}))
+                           (grid/col {:className "pull-left"} (:votes app))
+                           (grid/col {}
+                                     (om/build down-vote-button
+                                               app
+                                               {:state {:ch (om/get-state owner :downvote-ch)}})))))))
